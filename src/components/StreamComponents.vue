@@ -15,7 +15,7 @@
   />
 
   <el-button type="primary" style="margin-left: 10px" @click="filterByDateRange">
-    Filter by Date Rangew
+    Filter by Date Range
   </el-button>
   <el-tabs type="border-card" class="demo-tabs" v-loading="isLoading">
     <el-tab-pane>
@@ -27,104 +27,136 @@
       </template>
 
       <!-- Download button to trigger file downloads for selected rows -->
-      <el-button type="primary" style="margin-bottom: 10px" @click="handleDownload"
-        >Download</el-button>
+      <div style="margin-bottom: 10px; display: flex; gap: 10px;">
+        <!-- Download 按钮 -->
+        <el-button type="primary" @click="handleDownload">Download</el-button>
 
+        <!-- Change Name 按钮 -->
+        <el-button type="info" @click="toggleEdit">
+          {{ isEditing ? "Save All" : "Change Name" }}
+        </el-button>
+      </div>
       <!-- Table displaying the replays data -->
       <el-table :data="tableDataGet" style="width: 100%" @selection-change="handleSelectionChange">
-        <!-- Checkbox selection column -->
         <el-table-column type="selection" width="55" />
 
-        <!-- Stream Number column -->
-        <el-table-column
-          label="StreamNo"
-          width="100"
-          show-overflow-tooltip
-          :filters="[
-            { text: '1', value: '1' },
-            { text: '2', value: '2' },
-            { text: '3', value: '3' },
-            { text: '4', value: '4' }
-          ]"
-          :filter-method="filterStreamNo"
-          filtered-value=""
-        >
+        <el-table-column label="StreamNo" width="100" show-overflow-tooltip>
           <template #default="scope">{{ scope.row[1] }}</template>
         </el-table-column>
 
-        <!-- Date and time column -->
         <el-table-column label="DateTime" width="150" show-overflow-tooltip>
           <template #default="scope">{{ scope.row[2] }}</template>
         </el-table-column>
 
-        <!-- File name column -->
         <el-table-column label="FileName" width="240" show-overflow-tooltip>
-          <template #default="scope">{{ scope.row[0] }}</template>
+          <template #default="scope">
+            <el-text v-show="!isEditing">{{ scope.row[0] }}</el-text>
+            <el-input v-show="isEditing" v-model="editedNames[scope.row[0]]"></el-input>
+          </template>
         </el-table-column>
 
-        <!-- File size column, displays size in MB -->
         <el-table-column label="FileSize" width="150" show-overflow-tooltip>
           <template #default="scope">{{ scope.row[3] }}MB</template>
         </el-table-column>
+
       </el-table>
+
     </el-tab-pane>
   </el-tabs>
 </template>
 
 <script lang="ts">
-import { onMounted, ref } from 'vue'
+import { onMounted, ref, toRaw } from 'vue'
 import axios from 'axios'
 import { useStore } from 'vuex'
 import dayjs from 'dayjs';
+import Cookies from 'js-cookie'
+import { ElMessage } from 'element-plus'
+import api from '@/main'
 const originalData = ref([]);
 export default {
   components: {
     // Component-specific imports go here if needed
   },
   setup() {
+
+
+    const isEditing = ref(false);
+    const editedNames = ref<Record<string, string>>({});
     // State variable to track loading status
     const dateFilters = ref([]);
     const startDate = ref(null); // Start date for filtering
     const endDate = ref(null);   // End date for filtering
     const isLoading = ref(false)
-
+    const isChangeNameDisable = ref(true)
     // Array to hold selected rows from the table
     const selectedRows = ref([])
+    const baseUrl = useStore().state.baseUrl
 
     // Array to store data fetched from the server for the replays
     const tableDataGet = ref([[] as tableDataGet[]])
+    const isChangeingName = ref(false)
+    const toggleEdit = async () => {
+      if (isEditing.value) {
+        console.log("Saving new names:", editedNames.value);
 
-    // Sample data for the table (used if needed for testing)
-    const tableData: User[] = [
-      {
-        datetime: '2016-05-04 15:12',
-        StreamNo: '1',
-        filename: 'Aleyna Kutzner',
-        filesize: '100MB'
-      },
-      { datetime: '2016-05-03', StreamNo: '1', filename: 'Helen Jacobi', filesize: '200MB' },
-      { datetime: '2016-05-02', StreamNo: '1', filename: 'Brandon Deckert', filesize: '150MB' },
-      { datetime: '2016-05-01', StreamNo: '1', filename: 'Margie Smith', filesize: '120MB' }
-    ]
+        for (const oldName in editedNames.value) {
+          const newName = editedNames.value[oldName];
+
+          if (!newName || newName.trim() === "" || newName === oldName) {
+            console.warn(`Skipping rename: ${oldName} -> ${newName}`);
+            continue;
+          }
+
+          try {
+            const response = await axios.get(baseUrl + "/rename", {
+              params: {
+                oldName: oldName,
+                newName: newName,
+              },
+            });
+
+            if (response.data) {
+              console.log(`Rename successful: ${oldName} -> ${newName}`);
+            } else {
+              console.error(`Rename failed: ${oldName} -> ${newName}`);
+            }
+          } catch (error) {
+            console.error(`Error renaming file: ${oldName} -> ${newName}`, error);
+          }
+        }
+
+        // 🚀 直接重新获取最新数据
+        await getReplays();
+      } else {
+        // 进入编辑模式，初始化 `editedNames`
+        tableDataGet.value.forEach(row => {
+          editedNames.value[row[0]] = row[0]; // 用文件名作为 key，初始化值
+        });
+      }
+
+      isEditing.value = !isEditing.value;
+    };
 
     /**
      * Fetches replays data from the server and populates `tableDataGet`.
      * Sets the loading state while the request is in progress.
      */
-    const getReplays = () => {
+    const  getReplays = () => {
       isLoading.value = true
-      axios({
+      api({
         method: 'get',
-        url: useStore().state.baseUrl + '/fetchreplays'
+        url: baseUrl + '/fetchreplays'
       }).then((res) => {
         originalData.value = res.data;
         tableDataGet.value = [...originalData.value]; // Populate the table data with response
         isLoading.value = false // Stop loading indicator
       })
+
     }
 
     const store = useStore() // Access Vuex store instance
-    const filterStreamNo = (value, row) => {
+    const filterStreamNo = (value:any, row:any) => {
       return row[1] === value;
     };
 
@@ -132,7 +164,7 @@ export default {
      * Handles row selection in the table and updates `selectedRows`.
      * @param selection The selected rows from the table
      */
-    const handleSelectionChange = (selection) => {
+    const handleSelectionChange = (selection:any) => {
       selectedRows.value = selection
       console.log('Currently selected rows: ', selectedRows.value)
     }
@@ -164,14 +196,38 @@ export default {
         return true;
       });
     };
+    const getRole = () => {
+      let token = Cookies.get('token');
+      axios({
+        method: 'post',
+        url: `${baseUrl}/user/getRoleByToken`,
+        data: {
+          token: token
+        },
+
+      })
+        .then((res) => {
+          Cookies.set('role', res.data.data);
+          isChangeNameDisable.value = false;
+        })
+    }
+    const changeVideoName = () =>{
+      isChangeingName.value = true
+
+    }
     // Call getReplays when the component is mounted to load initial data
     onMounted(async () => {
       await getReplays()
+      await getRole()
     })
+
+
+
+
+
 
     // Return state variables and methods to be used in the template
     return {
-      tableData,
       tableDataGet,
       isLoading,
       handleSelectionChange,
@@ -179,7 +235,13 @@ export default {
       filterStreamNo,
       filterByDateRange,
       startDate,
-      endDate
+      endDate,
+      isChangeNameDisable,
+      isChangeingName,
+      changeVideoName,
+      toggleEdit,
+      editedNames,
+      isEditing,
     }
   }
 }

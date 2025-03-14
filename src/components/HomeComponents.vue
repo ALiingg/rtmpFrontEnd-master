@@ -43,14 +43,14 @@
     <el-col :span="18" class="live-container">
       <el-row :gutter="20">
         <!-- Each video element wrapped in a draggable and resizable container -->
-        <el-col :span="12">
+        <el-col :span="12" v-for="(position, index) in videoPositions" :key="index">
           <Vue3DraggableResizable
             :initW="600"
             :initH="400"
-            v-model:x="x2"
-            v-model:y="y2"
-            v-model:w="w2"
-            v-model:h="h2"
+            v-model:x="position.x"
+            v-model:y="position.y"
+            v-model:w="position.w"
+            v-model:h="position.h"
             v-model:active="active"
             :draggable="true"
             :resizable="true"
@@ -63,91 +63,17 @@
             @drag-end="console.log('drag-end')"
             @resize-end="console.log('resize-end')"
           >
-            <div class="live-box">
-              <video id="videoElement1" controls style="width:100%;height:100%;" autoplay/>
+            <div class="live-box"  v-loading="false">
+                <video :id="'videoElement' + (index + 1)" controls style="width:100%;height:100%;" autoplay v-show="isStreamActive[index]"/>
+<!--                <div class="video-disconnect">-->
+<!--                  <el-icon><CircleClose /></el-icon>-->
+
+<!--                </div>-->
             </div>
           </Vue3DraggableResizable>
 
         </el-col>
-        <el-col :span="12">
-          <Vue3DraggableResizable
-            :initW="600"
-            :initH="400"
-            v-model:x="x"
-            v-model:y="y"
-            v-model:w="w"
-            v-model:h="h"
-            v-model:active="active"
-            :draggable="true"
-            :resizable="true"
-            @activated="console.log('activated')"
-            @deactivated="console.log('deactivated')"
-            @drag-start="console.log('drag-start')"
-            @resize-start="console.log('resize-start')"
-            @dragging="console.log('dragging')"
-            @resizing="console.log('resizing')"
-            @drag-end="console.log('drag-end')"
-            @resize-end="console.log('resize-end')"
-          >
-            <div class="live-box">
-              <video id="videoElement2" controls style="width:100%;height:100%;" autoplay/>
-            </div>
-          </Vue3DraggableResizable>
-
-        </el-col>
-        <el-col :span="12">
-          <Vue3DraggableResizable
-            :initW="600"
-            :initH="400"
-            v-model:x="x3"
-            v-model:y="y3"
-            v-model:w="w3"
-            v-model:h="h3"
-            v-model:active="active"
-            :draggable="true"
-            :resizable="true"
-            @activated="console.log('activated')"
-            @deactivated="console.log('deactivated')"
-            @drag-start="console.log('drag-start')"
-            @resize-start="console.log('resize-start')"
-            @dragging="console.log('dragging')"
-            @resizing="console.log('resizing')"
-            @drag-end="console.log('drag-end')"
-            @resize-end="console.log('resize-end')"
-          >
-            <div class="live-box">
-              <video id="videoElement3" controls style="width:100%;height:100%;" autoplay/>
-            </div>
-          </Vue3DraggableResizable>
-
-        </el-col>
-        <el-col :span="12">
-          <Vue3DraggableResizable
-            :initW="600"
-            :initH="400"
-            v-model:x="x4"
-            v-model:y="y4"
-            v-model:w="w4"
-            v-model:h="h4"
-            v-model:active="active"
-            :draggable="true"
-            :resizable="true"
-            @activated="console.log('activated')"
-            @deactivated="console.log('deactivated')"
-            @drag-start="console.log('drag-start')"
-            @resize-start="console.log('resize-start')"
-            @dragging="console.log('dragging')"
-            @resizing="console.log('resizing')"
-            @drag-end="console.log('drag-end')"
-            @resize-end="console.log('resize-end')"
-          >
-            <div class="live-box">
-              <video id="videoElement4" controls style="width:100%;height:100%;" autoplay/>
-            </div>
-          </Vue3DraggableResizable>
-
-        </el-col>
-        <!-- Additional video containers for other video feeds, duplicated as needed -->
+          <!-- Additional video containers for other video feeds, duplicated as needed -->
       </el-row>
     </el-col>
   </el-row>
@@ -161,14 +87,18 @@ import flvjs from 'flv.js';
 import mpegtsjs from 'mpegts.js';
 import Cookies from 'js-cookie';
 import { onMounted, reactive, ref } from 'vue';
-import { Headset, Microphone, Mute } from '@element-plus/icons-vue';
+import { Headset, Microphone, Mute, CircleClose } from '@element-plus/icons-vue';
 import axios from 'axios';
-import { mapState, mapMutations, useStore } from 'vuex';
+import index, { mapState, mapMutations, useStore } from 'vuex';
 import { ElMessage } from 'element-plus';
 import Vue3DraggableResizable from 'vue3-draggable-resizable';
+import api, { setAuthToken } from '@/main.ts'
 
 export default {
   computed: {
+    index() {
+      return index
+    }
     // ...mapState(['isLogin']) // Retrieve login status from Vuex state
   },
   methods: {
@@ -218,11 +148,17 @@ export default {
     const activeTab = ref('login');
     const flvPlayers = ref([]);
     const showLoginDialog = ref(false);
-    const baseUrl = useStore().state.baseUrl;
+      const baseUrl = useStore().state.baseUrl;
     const isLogin = ref(false);
     const loginMethod = ref();
-
-    let urls = new Array(4);
+    const urls = ref([]);
+    const isStreamActive = ref([true, true, true, true]);
+    const videoPositions = [
+      { x: 15, y: 15, w: 400, h: 600 },    // 视频1的位置和尺寸
+      { x: 800, y: 15, w: 400, h: 600 },  // 视频2的位置和尺寸
+      { x: 800, y: 400, w: 400, h: 600 }, // 视频3的位置和尺寸
+      { x: 15, y: 400, w: 400, h: 600 },  // 视频4的位置和尺寸
+    ];
 
     /**
      * Fetches video stream URLs from the server.
@@ -230,14 +166,14 @@ export default {
      * @return void
      */
     const getUrl = () => {
-      axios.get(baseUrl + "/live").then((response) => {
-        urls = response.data;
-        console.log(urls)
-
-        for (let i = 1; i <= urls.length; i++) {
+      api.get(baseUrl + "/live").then((response) => {
+        urls.value = response.data;
+        console.log(urls.value)
+        let players = [];
+        for (let i = 1; i <= urls.value.length; i++) {
           let name = 'videoElement' + i;
-          flvPlayers.value.push(createVideo(name, urls[i - 1]));
-
+          players[i] = flvPlayers.value.push(createVideo(name, urls.value[i - 1]));
+          console.log(players[i])
         }
         // flvPlayers.value.push(createVideo('videoElement1', urls[0]));
         // flvPlayers.value.push(createVideo('videoElement2', urls[1]));
@@ -273,6 +209,7 @@ export default {
         method: 'post',
         url: baseUrl + '/user/login?uname=' + loginForm.name + "&password=" + loginForm.password,
       }).then(res => {
+        setAuthToken(res.data.data.token);
         Cookies.set('token', res.data.data.token, { expires: 1, path: '' });
         setTimeout(() => {
           ElMessage({
@@ -319,23 +256,61 @@ export default {
      */
     const createVideo = (videoId, streamUrl) => {
       const videoElement = document.getElementById(videoId);
-      if (mpegtsjs.isSupported()) {
-        try {
-          const flvPlayer = mpegtsjs.createPlayer({
-            type: 'flv',
-            url: streamUrl,
-            isLive: true,
-            hasAudio: true,
-          });
-          flvPlayer.attachMediaElement(videoElement);
-          flvPlayer.load();
-          flvPlayer.play();
-          return flvPlayer;
-        } catch (error) {
-          console.error(`Error creating FLV player: ${error}`);
-        }
-      } else {
-        console.warn('FLV.js not supported on this browser.');
+      if (!mpegtsjs.isSupported()) {
+        console.warn("FLV.js not supported on this browser.");
+        return;
+      }
+
+      try {
+        const flvPlayer = mpegtsjs.createPlayer({
+          type: "flv",
+          url: streamUrl,
+          isLive: true,
+          hasAudio: true,
+        });
+
+        // 超时切换到占位符
+        // const timeout = setTimeout(() => {
+        //   console.warn(`Stream ${streamUrl} failed to load in 10 seconds. Switching to placeholder.`);
+        //   flvPlayer.unload(); // 卸载当前播放器
+        // }, 15000); // 10秒超时
+
+        flvPlayer.attachMediaElement(videoElement);
+        flvPlayer.load();
+
+        // 清除超时逻辑，如果加载成功
+        flvPlayer.on(mpegtsjs.Events.LOADING_COMPLETE, () => {
+          console.log(`Stream ${streamUrl} loaded successfully.`);
+          clearTimeout(timeout); // 取消超时
+        });
+
+        flvPlayer.play();
+        return flvPlayer;
+      } catch (error) {
+        console.error(`Error creating FLV player for ${videoId}:`, error);
+      }
+    };
+    const switchToPlaceholder = (videoId) => {
+      const videoElement = document.getElementById(videoId);
+      if (!mpegtsjs.isSupported()) {
+        console.warn("FLV.js not supported on this browser.");
+        return;
+      }
+
+      try {
+        const placeholderPlayer = mpegtsjs.createPlayer({
+          type: "flv",
+          url: "http://eastscloud.tech:8008/live?port=553&app=myapp&stream=5", // 占位符直播流地址
+          isLive: true,
+          hasAudio: true,
+        });
+
+        placeholderPlayer.attachMediaElement(videoElement);
+        placeholderPlayer.load();
+        placeholderPlayer.play();
+        console.log(`Switched ${videoId} to placeholder stream.`);
+      } catch (error) {
+        console.error(`Error switching ${videoId} to placeholder stream:`, error);
       }
     };
 
@@ -357,6 +332,7 @@ export default {
     });
 
     return {
+      videoPositions,
       loginForm,
       registerForm,
       handleLogin,
@@ -367,28 +343,14 @@ export default {
       loginLoading,
       isLogin,
       loginMethod,
-      handelSendCode
+      handelSendCode,
+      urls,
+      isStreamActive
     };
   },
   data() {
     return {
-      // Position and dimensions for draggable and resizable video components
-      x: 800,
-      y: 15,
-      h: 600,
-      w: 400,
-      x2: 15,
-      y2: 15,
-      h2: 600,
-      w2: 400,
-      x3: 800,
-      y3: 400,
-      h3: 600,
-      w3: 400,
-      x4: 15,
-      y4: 400,
-      h4: 600,
-      w4: 400,
+
       active: false,
       muted: false,
       currentUser: 'You',

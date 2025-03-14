@@ -5,6 +5,7 @@ import Cookies from 'js-cookie'
 import { reactive, ref } from 'vue'
 import { useStore } from 'vuex'
 import { useRouter } from 'vue-router'
+import { setAuthToken } from '@/main'
 export default {
   computed: {},
   components: {},
@@ -65,6 +66,8 @@ export default {
             type: 'error'
           })
         }
+      }).catch((err) => {
+        sendOTPLoading.value = false
       })
     }
     const checkPassword = () => {
@@ -123,11 +126,19 @@ export default {
       loginLoading.value = true; // Enable the loading state, typically used to show a spinner or loading animation
 
       // Send a POST request to the login API with the username and password as query parameters
+      const loginField = loginMethod.value === 'Username' ? 'uname' : 'email';
+      console.log(loginField)
       axios({
         method: 'post',
-        url: baseUrl + '/user/login?uname=' + loginForm.name + '&password=' + loginForm.password,
+        url: `${baseUrl}/user/login`,
+        params: {
+          [loginField]: loginForm.name, // Value depends on the radio selection
+          password: loginForm.password,
+        },
       })
         .then((res) => {
+          setAuthToken(res.data.data.token);
+
           // On successful login, save the returned token in cookies
           Cookies.set('token', res.data.data.token);
           console.log(res.data.data.token); // Log the token to the console for debugging purposes
@@ -203,7 +214,8 @@ export default {
           message: 'Password Does Not Match!',
           type: 'error'
         });
-        return; // Exit the function
+        regLoading.value = false;
+        return;
       }
 
       // Send a POST request to the registration endpoint
@@ -227,7 +239,6 @@ export default {
                 message: 'Register Success',
                 type: 'success'
               });
-              regLoading.value = false;
             },100)
             // Show a success message
 
@@ -237,10 +248,15 @@ export default {
           } else if (res.data.code == '123') {
             // Show an error message if the passcode is incorrect
             ElMessage({
-              message: 'Passcode Incorrect',
+              message: res.data.msg,
               type: 'error'
             });
-            console.log(res.data)
+            regLoading.value = false;
+          } else if (res.data.code == '122') {
+            ElMessage({
+              message: res.data.msg,
+              type: 'error'
+            });
             regLoading.value = false;
           }
         })
@@ -249,7 +265,11 @@ export default {
           console.error('Error during registration:', error);
         });
 
+
     };
+    const handleChange = () => {
+
+    }
 
 
     return {
@@ -262,7 +282,7 @@ export default {
       loginForm,
       registerForm,
       activeTab,
-
+      handleChange,
       showLoginDialog,
       loginLoading,
       isLogin,
@@ -288,7 +308,7 @@ export default {
           <el-radio value="Email" size="large">Email</el-radio>
         </el-radio-group>
         <el-form :model="loginForm" label-width="80px" class="form">
-          <el-form-item label="Username">
+          <el-form-item :label="loginMethod === 'Username' ? 'Username' : 'Email'">
             <el-input v-model="loginForm.name" />
           </el-form-item>
           <el-form-item label="Password">

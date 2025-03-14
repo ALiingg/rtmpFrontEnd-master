@@ -14,8 +14,25 @@ import 'vue3-draggable-resizable/dist/Vue3DraggableResizable.css'
 import Cookies from 'js-cookie'
 import LoginComponents from '@/components/LoginComponents.vue'
 import store from '@/store/index.js'
+import { useStore } from 'vuex'
 const app = createApp(App)
 
+// const baseUrl = useStore().state.baseUrl;
+
+const token = Cookies.get("token") || "";
+
+// 创建 Axios 实例
+const api = axios.create({
+  headers: {
+    Authorization: `${token}`, // 全局添加 Token
+    "Content-Type": "application/json",
+  },
+});
+export function setAuthToken(token: string) {
+  Cookies.set("token", token); // 存入 Cookies
+  api.defaults.headers.Authorization = `${token}`; // 更新 Axios Header
+}
+export default api;
 
 
 // Set up Vue Router to handle different pages in the app
